@@ -1,0 +1,209 @@
+---
+title: "Plot_cells"
+author: "Robert Reid"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(plotly)
+theme_set(theme_bw())
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+totalcelldata <- read_csv("totalcelldata2.csv") %>%
+  filter(!is.na(`Color Code`))
+```
+
+```{r}
+###############################################################################
+# Function to split a comma-separated string into a character vector,
+# trimming whitespace along the way.
+###############################################################################
+split_trim <- function(x) {
+  # Handle empty or NA fields gracefully:
+  if (is.na(x) || nchar(trimws(x)) == 0) {
+    return(character(0))  # empty character vector
+  }
+  
+  x %>%
+    str_split(pattern = ",\\s+") %>%
+    unlist()
+}
+
+###############################################################################
+# Function to group a vector of numeric or character values into sets of three,
+# returning each triple as a single string: "X, Y, Z".
+###############################################################################
+group_in_threes <- function(vals) {
+  # If we don't actually have data or the length is not a multiple of 3, handle gracefully:
+  if (length(vals) == 0) {
+    return(character(0))
+  }
+  if ((length(vals) %% 3) != 0) {
+    warning("Number of location values is not a multiple of 3; check your data.")
+  }
+  
+  out <- c()
+  # Step by 3, e.g. i in 1,4,7,...
+  for (i in seq(1, length(vals), by = 3)) {
+    # Avoid going out of bounds if length is not exactly multiple of 3
+    upper <- min(i+2, length(vals))
+    triple <- paste(vals[i:upper], collapse = ", ")
+    out <- c(out, triple)
+  }
+  return(out)
+}
+
+###############################################################################
+#       Read in CSV
+###############################################################################
+
+###############################################################################
+# Main transformation: For each row in df_raw
+#   1) Parse the "Color Code" column.
+#   2) Extract the location and intensity columns for R, Y, and B.
+#   3) Split them into the correct number of sub-rows (one per color instance).
+###############################################################################
+
+# A helper function that processes a single row by index i
+process_single_row <- function(data, i) {
+  # 1. Extract the color code, e.g. "RRYYB"
+  color_code <- data[["Color Code"]]
+  
+  # 2. Count how many times R, Y, and B occur in the code
+  nR <- str_count(color_code, "R")
+  nY <- str_count(color_code, "Y")
+  nB <- str_count(color_code, "B")
+  
+  # 3. Split the location columns on commas, then group each into triplets
+  r_loc_raw <- split_trim(data[["R Locations (pixels)"]])
+  y_loc_raw <- split_trim(data[["Y Locations (pixels)"]])
+  b_loc_raw <- split_trim(data[["B Locations (pixels)"]])
+  
+  r_loc_triples <- group_in_threes(r_loc_raw)
+  y_loc_triples <- group_in_threes(y_loc_raw)
+  b_loc_triples <- group_in_threes(b_loc_raw)
+  
+  # 4. Split the intensity columns on commas
+  r_int <- split_trim(data[["R Intensities (au)"]])
+  y_int <- split_trim(data[["Y Intensities (au)"]])
+  b_int <- split_trim(data[["B Intensities (au)"]])
+  
+  # 5. Build out the sub-tables for R, Y, B
+  df_r <- tibble(
+    cell = i,            # original cell index from CSV
+    color = "R",
+    location = r_loc_triples,
+    intensity = r_int
+  ) %>% 
+    # keep only the # of rows that match how many R's are in the color code
+    slice(seq_len(nR))
+  
+  df_y <- tibble(
+    cell = i,
+    color = "Y",
+    location = y_loc_triples,
+    intensity = y_int
+  ) %>% 
+    slice(seq_len(nY))
+  
+  df_b <- tibble(
+    cell = i,
+    color = "B",
+    location = b_loc_triples,
+    intensity = b_int
+  ) %>% 
+    slice(seq_len(nB))
+  
+  # 6. Combine them for this particular row
+  out <- bind_rows(df_r, df_y, df_b) |>
+    separate(location,into = c("y","x","z"),sep = ",") |>
+    mutate(x = as.numeric(x),
+           y = as.numeric(y),
+           z = as.numeric(z))
+  return(out)
+}
+```
+
+
+```{r}
+###############################################################################
+# Apply that function to every row of df_raw using map_dfr
+#
+#     using a for loop...
+#
+#     like an animal or a python programmer...
+#
+###############################################################################
+
+object_df = data_frame()
+
+for (i in 1:nrow(totalcelldata)) {
+  object_df = rbind(object_df,process_single_row(totalcelldata[i,],i))
+}
+
+
+# Move this part into the process_single_row function
+#object_df = separate(object_df,location,into = c("y","x","z"),sep = ",") |>
+#  mutate(x = as.numeric(x),
+#         y = as.numeric(y),
+#         z = as.numeric(z))
+
+mean_positions = object_df |>
+  group_by(cell) |>
+  summarise(
+#    cell = cell,
+    color = paste(color, collapse = ""),
+    y = mean(y),
+    x = mean(x),
+    z = mean(z)
+  )
+
+```
+
+Plot intensity distribution for each color channel
+
+```{r}
+object_df |>
+  ggplot(aes(x=color,y=as.numeric(intensity), color=color)) +
+  geom_boxplot(color="grey16") +
+  geom_point(position=position_jitter(width = 0.2)) +
+  scale_color_manual(values= c("blue","red","yellow"))
+
+```
+
+Make interactive plot with clickable show/hide groups
+
+```{r}
+object_df |>
+  ggplot(aes(x=x,y=y,color=color)) +
+  #geom_point(alpha=0.5, size=4, stroke=1, color="black") +
+  #scale_shape_manual(values=c(3,4,6)) +
+  scale_y_reverse() +
+  geom_point(aes(fill=color),size=4, shape=20) +
+  scale_color_manual(values= c("blue","red","goldenrod4")) +
+  scale_fill_manual(values= c("lightblue","pink","yellow")) +
+  theme(text = element_text(family = "Ubuntu")) +
+  geom_text(aes(x=x,y=y,label=color),data=mean_positions,
+             inherit.aes = FALSE,nudge_y = -25) +
+  xlim(0,672) +
+  ylim(512,0) -> p
+
+ggplotly(p)
+```
+
+
+```{r}
+x = as.character(1:9)
+
+chk = 3
+
+split_vector <- split(x, ceiling(seq_along(x) / chk))
+
+map(split_vector,pas)
+
+```
+
