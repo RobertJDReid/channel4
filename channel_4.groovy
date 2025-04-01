@@ -2,7 +2,7 @@
 // *
 // *                                      Channel 4
 // *
-// *                                    Version 0.11
+// *                                    Version 0.12
 // *
 // ***************************************************************************************
 
@@ -252,6 +252,11 @@ println(imageList)
 // in case order is switched in other data samples
 // Matters because we will use a gausian blur for the
 // red channel when finding points, but not the others
+// 
+// Note: These are set into variables at the top of the script
+//    redChannel
+//    yellowChannel
+//    blueChannel
 
 selectedNames.each { name ->
 
@@ -280,10 +285,8 @@ selectedNames.each { name ->
         def currentPsf = new File(psfPath,"${psf_colors[i]}_psf.tif").getAbsolutePath()
         def image = " -image platform " + match
         def psf = " -psf file " + currentPsf
-//        def psf = " -psf file " + psfPath + "/" + psf_colors[i] + "_psf.tif"
         def algorithm = " -algorithm RL " + deconIter
         def outputPath = new File(outputDir, subfolderName).getAbsolutePath()
-//        def outputPath = "" + outputDir + "/" + subfolderName // This typew of string catenation needs to start with a string
         def outputPathParam = " -path " + outputPath
         def outputFile = "channel" + i + "deconv"
         def outputFileString = " -out stack " + outputFile
@@ -293,7 +296,6 @@ selectedNames.each { name ->
             monitor = " -monitor no"
         }
 
-//        def monitor = " -monitor no" // 
         IJ.run("DeconvolutionLab2 Run", image + psf + algorithm + outputFileString + outputPathParam + monitor);
 
         println("Decon params" + image + psf + algorithm + outputFileString + outputPathParam)
@@ -311,7 +313,7 @@ selectedNames.each { name ->
             // selection. Red is the only channel that seems
             // to need this
         }
-        def stats = imp.getProcessor().getStatistics();
+        def stats = impZ.getProcessor().getStatistics();
         println("The min is: " + stats.min);
         println("The mean is: " + stats.mean);
         println("The max is: " + stats.max);
