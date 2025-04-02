@@ -1,6 +1,0 @@
-imp = IJ.openImage("channel1_maxProj.tif");
-imp = IJ.openImage("channel2_maxProj.tif");
-imp = IJ.openImage("channel3_maxProj.tif");
-IJ.run(imp, "Merge Channels...", "c1=channel1_maxProj.tif c3=channel3_maxProj.tif c7=channel2_maxProj.tif create keep");
-IJ.run(imp, "Arrange Channels...", "new=132");
-imp.show();
