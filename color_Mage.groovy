@@ -23,6 +23,6 @@ impR.show();
 impY.show();
 impB.show();
 
-String mergeArgs = "c1=" + impR.getTitle() + " c2=" + impY.getTitle() + " c3=" + impB.getTitle() + " create"
+String mergeArgs = "c1=" + impR.getTitle() + " c7=" + impY.getTitle() + " c3=" + impB.getTitle() + " create"
 IJ.run("Merge Channels...", mergeArgs)
-
+IJ.run("Arrange Channels...", "new=132");
